@@ -19,6 +19,7 @@
     "db:enrich": "node enrich-nutrients.js",
     "taxo:check": "node taxo-check.mjs",
     "taxo:check:db": "node taxo-check.mjs --db foodDatabase.sqlite",
+    "taxo:check:brands": "node taxo-check.mjs --db foodDatabase.branded.sqlite --branded",
     "seed:supabase": "node seed/supabase.js",
     "seed:supabase:dry": "node seed/supabase.js --dry-run",
     "seed:supabase:brands": "node seed/supabase.js --db foodDatabase.branded.sqlite"

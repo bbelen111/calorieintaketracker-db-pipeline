@@ -6,15 +6,20 @@ catalog the consumer app (`calorieintaketracker`) ships. It also owns taxonomy
 validation and the roadmap to seed the catalog into **Supabase** for cloud use.
 
 ```
-fdc-download/            raw USDA bulk dumps (gitignored, local only)
+fdc-download/            raw USDA bulk dumps (gitignored, local only; branded dump may be a
+                         junction to an external drive)
 config/
   curation.js            curation dial: junk/brand filters, manual staples, donor clones
+  brands.js              brand-catalog dial: verified-complete gate, junk patterns, brand
+                         owner filters, serving-unit→grams table, classification rules
   taxonomy.js            canonical category/subcategory maps, aliases, invalid-portion labels
   nutrients.js           micro-nutrient canonical defs (fiber/sodium/saturatedFats/sugars)
 build.js                 raw CSVs → curated SQLite catalog (Foundation + SR Legacy + Survey)
+build-brands.js          FDC Branded CSV → foodDatabase.branded.sqlite (cloud-only, streamed)
 index.js                 audit / clean / quarantine tool for existing catalogs
 enrich-nutrients.js      micro-nutrient backfill from FDC bulk CSVs
-taxo-check.mjs           taxonomy + curation consistency validator (config and/or DB mode)
+seed/supabase.js         idempotent ON CONFLICT (id) upsert of any catalog into Supabase `foods`
+taxo-check.mjs           taxonomy + curation consistency validator (config/DB/--branded modes)
 reports/                 generated audit/anomaly/quarantine JSON (gitignored, .gitkeep kept)
 ```
 
@@ -88,13 +93,20 @@ Scripts are mirrored from the consumer repo conventions (`db:build`,
   `SUPABASE_SERVICE_ROLE_KEY` is used **only by this repo's seeder** — never by
   the Vercel deploy. FoodData Central is never called at runtime. See
   `docs/supabase-cloud-read-plan.md` (M2 live).
-- **Brands (cloud-only, pending FDC Branded download):** `build-brands.js`
-  cleans the FDC Branded CSV dump into `foodDatabase.branded.sqlite` (same
-  `foods` schema + `brand` column, `usda_<fdcId>` ids). Seed with the same
-  seeder: `node seed/supabase.js --db foodDatabase.branded.sqlite`. The app
-  bundle never includes brands. Download the branded CSV at
-  https://fdc.nal.usda.gov/download-datasets.html into `fdc-download/`
-  (`FoodData_Central_branded_food_csv_*`).
+- **Brands (cloud-only, live):** `build-brands.js` launders the FDC Branded CSV
+  dump (`FoodData_Central_branded_food_csv_2026-04-30`) into
+  `foodDatabase.branded.sqlite` (same `foods` schema + `brand` column,
+  `usda_<fdcId>` ids). It streams the ~2.9 GB release (2.0 M foods, 26 M nutrient
+  rows), verifies the nutrient-id scheme against the release's `nutrient.csv`
+  (1008=Energy; 1002=Nitrogen never aliased), and ships only **verified-complete**
+  rows: all 4 macros present, a serving size convertible to grams, a real brand,
+  US-invariant micros (`config/nutrients.js`), GTIN + fingerprint + exact dup
+  collapse, and no staple collisions (`config/brands.js` policy). Gate it with
+  `npm run taxo:check:brands` (zero violations). Seed idempotently with
+  `npm run seed:supabase:brands` (`--batch 500`; batch retries built in).
+  **Seeded: 348,459 branded rows** (358,103 total in `public.foods`). The app
+  bundle never includes brands. If the repo drive is too full for the dump,
+  junction it: `New-Item -ItemType Junction -Path .\fdc-download\FoodData_Central_branded_food_csv_2026-04-30 -Target D:\<path>\FoodData_Central_branded_food_csv_2026-04-30`.
 - Later: ingest regional/Philippine datasets (PhilFCT, ASEAN FCD, Open Food
   Facts PH) through the same schema + curation pipeline.
 

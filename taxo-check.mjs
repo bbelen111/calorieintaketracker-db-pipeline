@@ -82,7 +82,7 @@ const assertConfig = () => {
 
 // ---- DB validation -----------------------------------------------------
 
-const assertDb = async (dbPath) => {
+const assertDb = async (dbPath, branded) => {
   const { default: initSqlJs } = await import('sql.js');
   const SQL = await initSqlJs();
   const buffer = await fs.readFile(dbPath);
@@ -92,12 +92,20 @@ const assertDb = async (dbPath) => {
   const integrity = run('PRAGMA integrity_check')?.[0]?.[0];
   if (integrity !== 'ok') errors.push(`DB integrity check failed: ${integrity}`);
 
+  // Duplicate guard: staple catalogs dedupe on (name, category); the branded
+  // catalog legitimately repeats product names across brands, so it keys on
+  // (name, category, brand) instead.
+  const groupCols = branded
+    ? 'LOWER(name), category, LOWER(brand)'
+    : 'LOWER(name), category';
   const dupeCount =
     run(
-      'SELECT COUNT(*) FROM (SELECT LOWER(name), category, COUNT(*) c FROM foods GROUP BY LOWER(name), category HAVING c > 1)'
+      `SELECT COUNT(*) FROM (SELECT ${groupCols}, COUNT(*) c FROM foods GROUP BY ${groupCols} HAVING c > 1)`
     )[0]?.[0] ?? 0;
   if (dupeCount > 0) {
-    errors.push(`${dupeCount} duplicate (name, category) rows in ${dbPath}`);
+    errors.push(
+      `${dupeCount} duplicate (${branded ? 'name, category, brand' : 'name, category'}) rows in ${dbPath}`
+    );
   }
 
   const categories = run('SELECT DISTINCT category FROM foods');
@@ -135,11 +143,12 @@ const assertDb = async (dbPath) => {
 const dbArgIndex = globalThis.process.argv.indexOf('--db');
 const dbPath =
   dbArgIndex > -1 ? globalThis.process.argv[dbArgIndex + 1] : null;
+const branded = globalThis.process.argv.includes('--branded');
 
 assertConfig();
 if (dbPath) {
   try {
-    await assertDb(dbPath);
+    await assertDb(dbPath, branded);
   } catch (error) {
     errors.push(`failed to validate DB '${dbPath}': ${error.message}`);
   }

@@ -84,6 +84,26 @@ const chunk = (arr, size) => {
   return out;
 };
 
+// Transient network failures (fetch failed / 5xx) are retried with backoff so
+// a long seed can survive a blip instead of failing half-way. The upsert stays
+// idempotent (ON CONFLICT (id)), so interrupted runs are safe to re-run.
+const upsertWithRetry = async (supabase, batch, attempts = 3) => {
+  let lastError = null;
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const { error } = await supabase
+      .from('foods')
+      .upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
+    if (!error) return { error: null };
+    lastError = error;
+    if (attempt < attempts) {
+      const delay = 1500 * attempt;
+      console.log(`seed: batch attempt ${attempt} failed (${error.message}) — retrying in ${delay}ms`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  return { error: lastError };
+};
+
 const main = async () => {
   await loadEnv();
   const url = process.env.SUPABASE_URL;
@@ -113,12 +133,10 @@ const main = async () => {
   let errorCount = 0;
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize);
-    const { error } = await supabase
-      .from('foods')
-      .upsert(batch, { onConflict: 'id', ignoreDuplicates: false });
+    const { error } = await upsertWithRetry(supabase, batch);
     if (error) {
       errorCount += 1;
-      console.error(`seed: batch ${i / batchSize + 1} failed: ${error.message}`);
+      console.error(`seed: batch ${i / batchSize + 1} failed after retries: ${error.message}`);
     } else {
       console.log(
         `seed: batch ${i / batchSize + 1}/${Math.ceil(rows.length / batchSize)} upserted (rows ${i + 1}-${i + batch.length} of ${rows.length})`

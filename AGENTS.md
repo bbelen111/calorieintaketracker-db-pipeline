@@ -22,12 +22,16 @@ fdc-download/                 RAW INGESTION — USDA FDC bulk dumps (gitignored)
 config/                       CURATION + TAXONOMY LAYER
   curation.js                 junk/brand filters, include/exclude overrides,
                               manualFoods (donor-cloned staples), collapse rules
+  brands.js                   brand-catalog dial: verified-complete gate, exclude
+                              patterns/owners, serving-unit→grams units table,
+                              BRAND_CLASSIFY_RULES → canonical taxonomy pairs
   taxonomy.js                 CANONICAL_CATEGORIES, CANONICAL_SUBCATEGORY_BY_CATEGORY,
                               CATEGORY_ALIASES, SUBCATEGORY_ALIASES,
                               INVALID_PORTION_LABELS
   nutrients.js                canonical micro-nutrient defs + normalizers
 
 build.js                      PROCESSING — raw CSVs → curated sqlite catalog
+build-brands.js               FDC Branded CSV → branded catalog (cloud-only, streamed)
 index.js                      audit / clean / quarantine for built catalogs
 enrich-nutrients.js           micro backfill from FDC bulk CSVs
 
@@ -183,6 +187,35 @@ or common consumer forms) with `curated_<key>` ids. Rules:
 - `loadLegacyTaxonomy` (previous catalog → taxonomy hint) is advisory only;
   a fresh repo with no prior DB builds fine (~10-row drift vs the app's
   first-build, caused purely by that hint).
+
+### Branded-product pitfalls (build-brands.js)
+- The branded release `food.csv` `data_type` is **`branded_food`**, not
+  `branded`, and the household column is **`household_serving_fulltext`** (not
+  `_full_text`). Verify headers per release — both have changed historically.
+- The 2026-04-30 branded dump is BIG: ~2.0 M `food.csv` rows and ~26 M
+  `food_nutrient.csv` rows (~2.9 GB total). `build-brands.js` **streams** every
+  CSV (`node:readline`); never slurp these files whole.
+- Nutrient values are **per 100 g** label data (verified: energy `1008` →
+  nutrient_nbr `208`; `1002` is Nitrogen — never energy). Do not rescale to
+  serving size; prefer `median` over `amount` when present.
+- GTIN duplicates dominate: ~1.19 M rows share a zero-padded `gtin_upc`. Dedupe
+  prefers the as-purchased preparation state, then a fingerprint for GTIN-less
+  rows, then an exact `(lower name, category, lower brand)` collapse — FDC
+  re-lists the same product across GDSN updates/trade channels under fresh ids.
+- `brand` is the shared table's staple-vs-branded discriminator (NULL = staple).
+  `requireBrand` (config/brands.js) drops rows FDC lists without a brand owner —
+  otherwise they would rank like staples in `search_foods`.
+- `search_foods` ranks exact-name matches (500) above prefix (250) and only
+  demotes brands (-40) in the residual arm: queries like "milk" surface brand
+  rows literally named "Milk" ahead of the "Milk, whole,…" staples. That is
+  contract behavior, not a data defect.
+- NTFS junctions to an external drive work as the source
+  (`fdc-download/FoodData_Central_branded_food_csv_*`), but Node's
+  `readdir({withFileTypes:true})` reports junctions as SYMLINKS — discovery must
+  accept `isSymbolicLink()` and resolve with `fs.stat` (build-brands does this).
+- Seeding 348 k rows is network-heavy: `seed/supabase.js` retries each batch (3
+  attempts, backoff) so transient `fetch failed` blips self-heal; interrupted
+  runs are safe to re-run (idempotent upserts).
 ## Manual Curation Rules (add missing staples)
 
 1. Prefer a real FDC row first — check FNDDS before curating (e.g. oat/almond
@@ -217,9 +250,13 @@ or common consumer forms) with `curated_<key>` ids. Rules:
   seeder. Keep the RPCs and the canonical `catalogFoods` payload shape
   backward-compatible (`foods` legacy FDC envelope is for old native builds
   during the transition only).
-- **Brands are a cloud-only pass:** `build-brands.js` (gated on the FDC Branded
-  CSV download) → `foodDatabase.branded.sqlite` → `seed:supabase:brands`. The
-  app bundle stays staples-only; do not ship brands in `foodDatabase.sqlite`.
+- **Brands are a cloud-only pass (live):** `build-brands.js` (gated on the FDC
+  Branded CSV download) → `foodDatabase.branded.sqlite` →
+  `seed:supabase:brands` (idempotent `ON CONFLICT (id)` upserts with per-batch
+  retry). Seeded: **348,459 branded rows** from the 2026-04-30 release
+  (358,103 total in `public.foods`; `taxo-check.mjs --db foodDatabase.branded.sqlite --branded`
+  passes with zero violations). The app bundle stays staples-only; do not ship
+  brands in `foodDatabase.sqlite`. See "Branded-product pitfalls" below.
 - **Catalog bootstrap & parity (greenfield builds):** the first build in a fresh
   repo has no prior catalog to seed `loadLegacyTaxonomy`, so a handful of FNDDS
   rows (e.g. Eggnog, miso, natto, radicchio, beets, sweet peppers) drop.
