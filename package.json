@@ -16,7 +16,9 @@
     "db:clean": "node index.js --clean --replace",
     "db:enrich": "node enrich-nutrients.js",
     "taxo:check": "node taxo-check.mjs",
-    "taxo:check:db": "node taxo-check.mjs --db foodDatabase.sqlite"
+    "taxo:check:db": "node taxo-check.mjs --db foodDatabase.sqlite",
+    "seed:supabase": "node seed/supabase.js",
+    "seed:supabase:dry": "node seed/supabase.js --dry-run"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

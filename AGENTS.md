@@ -51,6 +51,11 @@ reports/                      audit/anomaly/quarantine/curation JSON (gitignored
   curated rows must always originate from a documented donor, never invented.
 - All runtime outputs (`*.sqlite`, `reports/*.json`) are gitignored. **Never**
   force-add or commit them, raw CSVs (`fdc-download/`), or `.env` secrets.
+- Raw FDC dumps live **only** in this repo under `fdc-download/` (gitignored).
+  The consumer repo reads them through a junction
+  (`scripts/food-db/fdc-download` → this repo's `fdc-download`) so there is a
+  single source of truth; restore that junction with
+  `New-Item -ItemType Junction -Path <app>\scripts\food-db\fdc-download -Target <this repo>\fdc-download`.
 - Every script is ESM (`"type": "module"` in `package.json`); tests/scripts use
   explicit relative paths.
 - Do not embed dataset quality hacks in `build.js`; keep curation policy in
@@ -189,13 +194,23 @@ or common consumer forms) with `curated_<key>` ids. Rules:
 4. Run `taxo-check` + the audit routine afterwards — **zero** category
    mismatches or orphan items before `--replace`.
 
-## Cloud Seeding Roadmap (Supabase)
+## Cloud Seeding (Supabase)
 
-- `seed/supabase.js` (future): batch **upserts of 500–1000 items** with the
-  service-role client from `.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).
-  Upsert key = food `id`; keep it idempotent for re-runs.
-- Mirror the `foods` schema above; JSON-stringify `portions` for a Postgres
-  `text` column (or store as JSONB).
+- `seed/supabase.js` is ready to use:
+  - Reads any catalog SQLite via `--db <path>` (default: this repo's
+    `foodDatabase.sqlite`); `--dry-run` plans batches without network.
+  - Upserts batches (default 500, `--batch`) with the service-role client from
+    `.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), **`ON CONFLICT (id)`**
+    so re-seeding is idempotent and incremental syncs are safe.
+  - Requires the Postgres `foods` table (DDL in the script header): 13 columns
+    mirroring the catalog, `portions` JSON/text.
+- **Catalog bootstrap & parity (greenfield builds):** the first build in a fresh
+  repo has no prior catalog to seed `loadLegacyTaxonomy`, so a handful of FNDDS
+  rows (e.g. Eggnog, miso, natto, radicchio, beets, sweet peppers) drop.
+  Verified: copying the consumer app's `foodDatabase.sqlite` over this repo's
+  `foodDatabase.sqlite` before the build converges to **exact id-parity**
+  (9644/9644/0). Do this whenever you want the pipeline output to reproduce the
+  app's shipped catalog bit-for-bit.
 - Add RLS/read policies appropriate for a public read catalog; never expose the
   service-role key to clients.
 - Regional ingestion to the same schema: PhilFCT, ASEAN FCD, Open Food Facts PH

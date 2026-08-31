@@ -66,12 +66,18 @@ Scripts are mirrored from the consumer repo conventions (`db:build`,
 
 ## Cloud seeding roadmap (Supabase)
 
-- `seed/supabase.js`: batch **upserts of 500–1000 rows** using the service-role
-  credentials from `.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`),
-  on-conflict upsert keyed on the food `id` so re-seeding is idempotent.
-- Normalized schema mirrors the catalog `foods` table
-  (`id, name, category, subcategory, calories, protein, carbs, fats, fiber,
-  sodium, saturated_fats, sugars, portions`).
+- `seed/supabase.js` is ready to use:
+  - Reads **any** catalog SQLite via `--db <path>` (default: this repo's
+    `foodDatabase.sqlite`). To seed the exact catalog the consumer app ships,
+    point it at the app's `src/constants/food/foodDatabase.sqlite`.
+  - Upserts **500–1000 rows per batch** (default 500) with the service-role
+    client from `.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), keyed on
+    food `id` (`ON CONFLICT (id)`) so re-seeding is idempotent and safe for
+    incremental syncs.
+  - Ship the table first (DDL is in the script header) — 13 columns mirroring
+    the catalog `foods` table, `portions` as JSON text.
+  - `--dry-run` validates the batch plan against a local catalog without
+    touching the network.
 - Later: ingest regional/Philippine datasets (PhilFCT, ASEAN FCD, Open Food
   Facts PH) through the same schema + curation pipeline.
 
