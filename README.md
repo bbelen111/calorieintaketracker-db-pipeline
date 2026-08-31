@@ -64,7 +64,7 @@ Scripts are mirrored from the consumer repo conventions (`db:build`,
 - After **any** taxonomy or curation change, run `taxo-check.mjs` + the audit
   routine — zero category mismatches or orphans before shipping.
 
-## Cloud seeding roadmap (Supabase)
+## Cloud seeding + catalog serving (Supabase)
 
 - `seed/supabase.js` is ready to use:
   - Reads **any** catalog SQLite via `--db <path>` (default: this repo's
@@ -73,15 +73,24 @@ Scripts are mirrored from the consumer repo conventions (`db:build`,
   - Upserts **500–1000 rows per batch** (default 500) with the service-role
     client from `.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), keyed on
     food `id` (`ON CONFLICT (id)`) so re-seeding is idempotent and safe for
-    incremental syncs.
+    incremental syncs. **Staples seeded: 9,644 rows** (M1 done).
   - Ship the table first: **`seed/supabase.sql`** (idempotent DDL — table,
     indexes incl. trigram name search, RLS with public read / service-role
-    write). Already applied to the EnergyMap Supabase project.
+    write). Applied to the EnergyMap project plus migrations `foods_add_brand_column`
+    and `foods_search_rpc`.
   - `--dry-run` validates the batch plan against a local catalog without
     touching the network.
-- **Phase B (cloud read path in the app) is planned, not implemented** — see
-  `docs/supabase-cloud-read-plan.md` for the query surface, resolver order,
-  security model and milestones.
+- **The app's online search now reads this catalog through the same Vercel
+  gateway** (`/api/usda`): the proxy calls the PostgREST RPCs `search_foods` /
+  `search_foods_total` (service-role key, server-side). FoodData Central is never
+  called at runtime anymore. See `docs/supabase-cloud-read-plan.md` (M2 live).
+- **Brands (cloud-only, pending FDC Branded download):** `build-brands.js`
+  cleans the FDC Branded CSV dump into `foodDatabase.branded.sqlite` (same
+  `foods` schema + `brand` column, `usda_<fdcId>` ids). Seed with the same
+  seeder: `node seed/supabase.js --db foodDatabase.branded.sqlite`. The app
+  bundle never includes brands. Download the branded CSV at
+  https://fdc.nal.usda.gov/download-datasets.html into `fdc-download/`
+  (`FoodData_Central_branded_food_csv_*`).
 - Later: ingest regional/Philippine datasets (PhilFCT, ASEAN FCD, Open Food
   Facts PH) through the same schema + curation pipeline.
 

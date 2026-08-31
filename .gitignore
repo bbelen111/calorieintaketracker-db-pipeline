@@ -16,3 +16,6 @@ node_modules/
 # Auto-generated audit/anomaly/quarantine dumps (keep the directory via .gitkeep)
 reports/*.json
 !reports/.gitkeep
+# brand build artifacts
+foodDatabase.branded*.sqlite*
+reports/brands.json

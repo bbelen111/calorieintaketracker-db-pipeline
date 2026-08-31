@@ -11,6 +11,8 @@
     "db:build": "node build.js",
     "db:build:write": "node build.js --write",
     "db:build:replace": "node build.js --replace",
+    "db:build:brands": "node build-brands.js",
+    "db:build:brands:replace": "node build-brands.js --replace",
     "db:audit": "node index.js",
     "db:clean:dry": "node index.js --clean --dry-run",
     "db:clean": "node index.js --clean --replace",
@@ -18,7 +20,8 @@
     "taxo:check": "node taxo-check.mjs",
     "taxo:check:db": "node taxo-check.mjs --db foodDatabase.sqlite",
     "seed:supabase": "node seed/supabase.js",
-    "seed:supabase:dry": "node seed/supabase.js --dry-run"
+    "seed:supabase:dry": "node seed/supabase.js --dry-run",
+    "seed:supabase:brands": "node seed/supabase.js --db foodDatabase.branded.sqlite"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

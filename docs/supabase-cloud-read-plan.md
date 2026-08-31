@@ -1,9 +1,11 @@
 # Cloud Read Path — Plan (Phase B)
 
-**Status: PLAN ONLY.** Nothing in this document is implemented in the consumer
-app (`calorieintaketracker`) yet. It is the agreed design for wiring the cloud
-catalog into the app after the base is seeded. Keep this doc in sync with any
-decisions that change these constraints.
+**Status: M2 IMPLEMENTED.** The consumer app's online food search now serves
+through this cloud path (Vercel gateway `/api/usda` → PostgREST RPCs → the
+seeded `public.foods` table). Milestones M1–M2 are done; brands and regional
+sources remain queued. Where the shipped implementation deliberately differs
+from the original design notes below, it is called out in "Implementation
+drift" at the end of this doc.
 
 ## Context & goals
 
@@ -94,3 +96,26 @@ logic and MUST keep resolving after the cloud path lands (cloud rows carry
 Acceptance for M2: with cloud seeded + flagged on, a search for `"chicken
 breast"` returns the same top rows as local sql.js, honors `pinnedFoods`, and
 falls back flawlessly to the bundled DB when offline/server error.
+
+---
+
+## Implementation drift (shipped)
+
+- **No new `foodSearchCloud.js` service.** The existing `services/usda.js`
+  mapper was replaced in place (`mapCatalogFoodToFood`), keeping the `/api/usda`
+  URL, native `VITE_USDA_API_BASE`, client retry/abort and cache-on-select
+  untouched. Intentional least-diff.
+- **Proxy gateway (`api/usda.js`) is the only server change.** It calls
+  `search_foods` / `search_foods_total` RPCs with the service-role key
+  (server-side; RLS public-read still applies to direct clients). Results are
+  wrapped in two envelopes: canonical `catalogFoods` (current client) and a
+  synthetic FDC `foods` envelope (old native builds during the transition).
+- **Totals use a dedicated `search_foods_total` RPC**, not a `Content-Range`
+  parse (simpler + deterministic), falling back to `rows.length` on failure.
+- **Branded products share the `foods` table** via a `brand` column (M2):
+  `build-brands.js` cleans the FDC Branded CSV dump into a local branded
+  sqlite; the same seeder upserts it (`seed:supabase:brands`). App bundle
+  remains staples-only (9,644 rows); `search_foods` demotes/boosts brand rows
+  by brand intent.
+- **Ranking parity** with local sql.js is implemented inside `search_foods`
+  (exact → prefix → word-boundary weights + `LENGTH(name)`/name tiebreak).
