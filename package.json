@@ -1,0 +1,25 @@
+{
+  "name": "calorieintaketracker-db-pipeline",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Standalone USDA FDC food catalog pipeline: raw ingestion, curation of missing staples, taxonomy validation, and cloud (Supabase) seeding.",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "db:build": "node build.js",
+    "db:build:write": "node build.js --write",
+    "db:build:replace": "node build.js --replace",
+    "db:audit": "node index.js",
+    "db:clean:dry": "node index.js --clean --dry-run",
+    "db:clean": "node index.js --clean --replace",
+    "db:enrich": "node enrich-nutrients.js",
+    "taxo:check": "node taxo-check.mjs",
+    "taxo:check:db": "node taxo-check.mjs --db foodDatabase.sqlite"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "sql.js": "^1.13.0"
+  }
+}
