@@ -74,10 +74,14 @@ Scripts are mirrored from the consumer repo conventions (`db:build`,
     client from `.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), keyed on
     food `id` (`ON CONFLICT (id)`) so re-seeding is idempotent and safe for
     incremental syncs.
-  - Ship the table first (DDL is in the script header) — 13 columns mirroring
-    the catalog `foods` table, `portions` as JSON text.
+  - Ship the table first: **`seed/supabase.sql`** (idempotent DDL — table,
+    indexes incl. trigram name search, RLS with public read / service-role
+    write). Already applied to the EnergyMap Supabase project.
   - `--dry-run` validates the batch plan against a local catalog without
     touching the network.
+- **Phase B (cloud read path in the app) is planned, not implemented** — see
+  `docs/supabase-cloud-read-plan.md` for the query surface, resolver order,
+  security model and milestones.
 - Later: ingest regional/Philippine datasets (PhilFCT, ASEAN FCD, Open Food
   Facts PH) through the same schema + curation pipeline.
 

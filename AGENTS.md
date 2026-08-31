@@ -202,8 +202,16 @@ or common consumer forms) with `curated_<key>` ids. Rules:
   - Upserts batches (default 500, `--batch`) with the service-role client from
     `.env` (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`), **`ON CONFLICT (id)`**
     so re-seeding is idempotent and incremental syncs are safe.
-  - Requires the Postgres `foods` table (DDL in the script header): 13 columns
-    mirroring the catalog, `portions` JSON/text.
+  - Requires the Postgres `foods` table — use the idempotent DDL in
+    `seed/supabase.sql` (already applied to the EnergyMap project:
+    migrations `create_foods_table` + `foods_security_hygiene`). The migration
+    ships RLS (`foods public read`), 5 indexes (incl. `foods_trgm_name_idx`
+    for `ILIKE`), and grant hygiene (anon/authenticated = SELECT only).
+- **Phase B (cloud read path) is planned, not implemented:** see
+  `docs/supabase-cloud-read-plan.md` for the query surface, resolver order
+  (local sql.js first → cloud fallback), security model (anon key, RLS read-only,
+  service key never in app), freshness/sync model and M1–M4 milestones. Do not
+  build app-side consumption until that plan is approved and the base is seeded.
 - **Catalog bootstrap & parity (greenfield builds):** the first build in a fresh
   repo has no prior catalog to seed `loadLegacyTaxonomy`, so a handful of FNDDS
   rows (e.g. Eggnog, miso, natto, radicchio, beets, sweet peppers) drop.

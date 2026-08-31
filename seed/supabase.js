@@ -12,17 +12,9 @@
  *   SUPABASE_SERVICE_ROLE_KEY service-role key (server-side only — never ship to a client)
  *
  * The upsert is idempotent (ON CONFLICT (id)) so re-running is safe and can be
- * used to sync updates from a rebuilt catalog. Requires the Postgres table:
- *
- *   CREATE TABLE foods (
- *     id TEXT PRIMARY KEY,
- *     name TEXT NOT NULL,
- *     category TEXT,
- *     subcategory TEXT,
- *     calories REAL, protein REAL, carbs REAL, fats REAL,
- *     fiber REAL, sodium REAL, saturated_fats REAL, sugars REAL,
- *     portions TEXT
- *   );
+ * used to sync updates from a rebuilt catalog. Requires the Postgres `foods`
+ * table — apply the idempotent DDL in ./supabase.sql first (table, indexes,
+ * RLS with public read / service-role write).
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
