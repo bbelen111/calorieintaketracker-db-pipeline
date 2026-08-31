@@ -209,10 +209,14 @@ or common consumer forms) with `curated_<key>` ids. Rules:
     RPCs (`search_foods` / `search_foods_total` — ranking mirrors the local
     catalog + brand-intent demotion/boost), and grant hygiene (anon/authenticated
     = SELECT only; RPC EXECUTE = service_role only).
-- **The app's online search now reads this catalog through the same Vercel
-  gateway (`/api/usda`); FDC is never called at runtime.** Keep the RPCs and the
-  canonical `catalogFoods` payload shape backward-compatible (`foods` legacy FDC
-  envelope is for old native builds during the transition only).
+- **The app's online search reads this catalog through the same Vercel
+  gateway, at `api/foods.js` (`/api/foods` + a legacy `/api/usda` alias for
+  already-shipped builds); FDC is never called at runtime.** The proxy uses the
+  **read-only anon key** (`SUPABASE_URL` + `SUPABASE_ANON_KEY`/
+  `SUPABASE_PUBLISHABLE_KEY`) — the service key never leaves this repo's
+  seeder. Keep the RPCs and the canonical `catalogFoods` payload shape
+  backward-compatible (`foods` legacy FDC envelope is for old native builds
+  during the transition only).
 - **Brands are a cloud-only pass:** `build-brands.js` (gated on the FDC Branded
   CSV download) → `foodDatabase.branded.sqlite` → `seed:supabase:brands`. The
   app bundle stays staples-only; do not ship brands in `foodDatabase.sqlite`.

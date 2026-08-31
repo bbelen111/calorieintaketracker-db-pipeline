@@ -80,10 +80,14 @@ Scripts are mirrored from the consumer repo conventions (`db:build`,
     and `foods_search_rpc`.
   - `--dry-run` validates the batch plan against a local catalog without
     touching the network.
-- **The app's online search now reads this catalog through the same Vercel
-  gateway** (`/api/usda`): the proxy calls the PostgREST RPCs `search_foods` /
-  `search_foods_total` (service-role key, server-side). FoodData Central is never
-  called at runtime anymore. See `docs/supabase-cloud-read-plan.md` (M2 live).
+- **The app's online search reads this catalog through the same Vercel
+  gateway, now branded `api/foods.js`** (`/api/foods` + a legacy `/api/usda`
+  alias for already-shipped builds): the proxy calls the PostgREST RPCs
+  `search_foods` / `search_foods_total` with the **read-only anon key**
+  (`SUPABASE_URL` + `SUPABASE_ANON_KEY` / `SUPABASE_PUBLISHABLE_KEY`). The
+  `SUPABASE_SERVICE_ROLE_KEY` is used **only by this repo's seeder** — never by
+  the Vercel deploy. FoodData Central is never called at runtime. See
+  `docs/supabase-cloud-read-plan.md` (M2 live).
 - **Brands (cloud-only, pending FDC Branded download):** `build-brands.js`
   cleans the FDC Branded CSV dump into `foodDatabase.branded.sqlite` (same
   `foods` schema + `brand` column, `usda_<fdcId>` ids). Seed with the same
